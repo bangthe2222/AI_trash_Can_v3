@@ -71,18 +71,11 @@ def letterbox(im, new_shape=(320, 320), color=(114, 114, 114), auto=True, scaleu
 def detect(img):
     # img = cv2.imread('shape.jpg')
     check_bottle = False
-    img = cv2.resize(img, (720,480))
+    img = cv2.resize(img, (224,224))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    image = img.copy()
-    image, ratio, dwdh = letterbox(image,new_shape=(320, 320), auto=False)
-    image = image.transpose((2, 0, 1))
-    image = np.expand_dims(image, 0)
-    image = np.ascontiguousarray(image)
-
-    im = image.astype(np.float32)
-    im /= 255
-    interpreter.set_tensor(input_details[0]['index'], im)
+    img = np.asarray([img], dtype= np.float32)
+    # im /= 255
+    interpreter.set_tensor(input_details[0]['index'], img)
 
     interpreter.invoke()
 
@@ -90,7 +83,11 @@ def detect(img):
     # Use `tensor()` in order to get a pointer to the tensor.
     output_data = interpreter.get_tensor(output_details[0]['index'])
     id_out = np.argmax(output_data[0])
-    if id_out == 3:
+
+    # get accuracy
+    acc_pre = output_data[0][id_out]
+
+    if id_out == 3 and acc_pre > 0.8:
         check_bottle = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     # writer.write(image)
@@ -145,25 +142,25 @@ class Ui(QtWidgets.QMainWindow):
         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
         self.convert = QImage(self.image, self.image.shape[1], self.image.shape[0], self.image.strides[0], QImage.Format.Format_RGB888)
         self.frame.setPixmap(QPixmap.fromImage(self.convert))        
-    # def checkBottle(self):
-    #     x = ser.readline()
-    #     print(x)
-    #     # print(result)
-    #     if (x[:-2].decode("utf-8")) == "0001":
-    #         time.sleep(0.1)
-    #         self.show_detect()
-    #         # result = detect(frame, net)
-    #         if self.check_bottle :
-    #             ser.write("0001".encode("utf-8"))
-    #             print("bottle here")
-    #             time.sleep(0.01)
-    #             self.num_bottle+=1
-    #             if self.check_user == True:
-    #                 updateData(cursor, self.user_id)
-    #                 self.timer_1_sec.start(1000)
-    #         else:
-    #             ser.write("0000".encode("utf-8"))
-    #             time.sleep(0.01)
+    def checkBottle(self):
+        x = ser.readline()
+        print(x)
+        # print(result)
+        if (x[:-2].decode("utf-8")) == "0001":
+            time.sleep(0.1)
+            self.show_detect()
+            # result = detect(frame, net)
+            if self.check_bottle :
+                ser.write("0001".encode("utf-8"))
+                print("bottle here")
+                time.sleep(0.01)
+                self.num_bottle+=1
+                if self.check_user == True:
+                    updateData(cursor, self.user_id)
+                    self.timer_1_sec.start(1000)
+            else:
+                ser.write("0000".encode("utf-8"))
+                time.sleep(0.01)
     def getId(self):
         list_num = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
         self.user_id =  self.phoneid.text()
@@ -232,7 +229,7 @@ if __name__ == "__main__":
     print("[INFO] loading model...")
 
         #Name of the classes according to class indices.
-    names = ["ALU", "GLASS", "HDBEM", "PET"]
+    names = ['Alu', 'Foam_box', 'Milk_box', 'PET', 'Paper', 'Paper_cup', 'Plastic_cup']
 
     #Creating random colors for bounding box visualization.
     colors = {name:[random.randint(0, 255) for _ in range(3)] for i,name in enumerate(names)}

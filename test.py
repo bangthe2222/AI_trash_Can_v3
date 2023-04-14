@@ -32,7 +32,7 @@ def letterbox(im, new_shape=(320, 320), color=(114, 114, 114), auto=True, scaleu
     return im, r, (dw, dh)
 
 #Name of the classes according to class indices.
-names = ['ALU', 'GLASS', 'HDPEM', 'PET']
+names =  ['Alu', 'Foam_box', 'Milk_box', 'PET', 'Paper', 'Paper_cup', 'Plastic_cup']
 
 #Creating random colors for bounding box visualization.
 colors = {name:[random.randint(0, 255) for _ in range(3)] for i,name in enumerate(names)}
@@ -40,7 +40,7 @@ colors = {name:[random.randint(0, 255) for _ in range(3)] for i,name in enumerat
 
 
 # Load the TFLite model and allocate tensors.
-interpreter = tflite.Interpreter(model_path="./bottle_V3_model.tflite")
+interpreter = tflite.Interpreter(model_path="./InceptionV3_7class_60_epoch.tflite")
 interpreter.allocate_tensors()
 # Get input and output tensors.
 input_details = interpreter.get_input_details()
@@ -59,45 +59,28 @@ while True:
     if _:
         t1 = time.time()
         _,img = cap.read()
+        img_src = img
         # img = cv2.imread('shape.jpg')
-        img = cv2.resize(img, (720,480))
+        img = cv2.resize(img, (224,224))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-        image = img.copy()
-        image, ratio, dwdh = letterbox(image,new_shape=(320, 320), auto=False)
-        image = image.transpose((2, 0, 1))
-        image = np.expand_dims(image, 0)
-        image = np.ascontiguousarray(image)
-
-        im = image.astype(np.float32)
-        im /= 255
-        interpreter.set_tensor(input_details[0]['index'], im)
+        img = np.asarray([img], dtype= np.float32)
+        # im /= 255
+        interpreter.set_tensor(input_details[0]['index'], img)
 
         interpreter.invoke()
 
         # The function `get_tensor()` returns a copy of the tensor data.
         # Use `tensor()` in order to get a pointer to the tensor.
         output_data = interpreter.get_tensor(output_details[0]['index'])
+        id_out = np.argmax(output_data[0])
 
-        ori_images = [img.copy()]
-        for i,(batch_id,x0,y0,x1,y1,cls_id,score) in enumerate(output_data):
-            image = ori_images[int(batch_id)]
-            box = np.array([x0,y0,x1,y1])
-            box -= np.array(dwdh*2)
-            box /= ratio
-            box = box.round().astype(np.int32).tolist()
-            print(box)
-            cls_id = int(cls_id)
-            score = round(float(score),3)
-            name = names[cls_id]
-            color = colors[name]
-            name += ' '+str(score)
-            cv2.rectangle(image,box[:2],box[2:],color,2)
-            cv2.putText(image,name,(box[0], box[1] - 2),cv2.FONT_HERSHEY_SIMPLEX,0.75,[225, 255, 255],thickness=2)  
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        # get accuracy
+        acc_pre = output_data[0][id_out]
+
+        print("id: ",names[id_out],"acc: ", acc_pre)
     
         # writer.write(image)
-        cv2.imshow("image", image)
+        cv2.imshow("image", img_src)
         print("fps:",1/(time.time()-t1))
         cv2.waitKey(1)
     else:
