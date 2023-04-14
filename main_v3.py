@@ -9,6 +9,7 @@ import numpy as np
 import sqlite3
 import random
 import tensorflow.lite as tflite
+
 def findData(cursor,id):
     cursor.execute("SELECT * FROM DATA WHERE PHONE=?", (id,))
     rows = cursor.fetchall()
@@ -88,26 +89,10 @@ def detect(img):
     # The function `get_tensor()` returns a copy of the tensor data.
     # Use `tensor()` in order to get a pointer to the tensor.
     output_data = interpreter.get_tensor(output_details[0]['index'])
-
-    ori_images = [img.copy()]
-    for i,(batch_id,x0,y0,x1,y1,cls_id,score) in enumerate(output_data):
-        image = ori_images[int(batch_id)]
-        box = np.array([x0,y0,x1,y1])
-        box -= np.array(dwdh*2)
-        box /= ratio
-        box = box.round().astype(np.int32).tolist()
-        print(box)
-        cls_id = int(cls_id)
-        score = round(float(score),3)
-        name = names[cls_id]
-        color = colors[name]
-        name += ' '+str(score)
-        cv2.rectangle(image,box[:2],box[2:],color,2)
-        cv2.putText(image,name,(box[0], box[1] - 2),cv2.FONT_HERSHEY_SIMPLEX,0.75,[225, 255, 255],thickness=2)  
-        if (name == "HDBEM") or (name == "PET"):
-            check_bottle = True
+    id_out = np.argmax(output_data[0])
+    if id_out == 3:
+        check_bottle = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-
     # writer.write(image)
     if check_bottle:
         return image, True
@@ -130,8 +115,8 @@ class Ui(QtWidgets.QMainWindow):
 
         # TIMER 
         self.timer_root = QtCore.QTimer(self)
-        self.timer_root.timeout.connect(self.show_frame)
-        self.timer_root.timeout.connect(self.checkBottle)
+        self.timer_root.timeout.connect(self.show_detect)
+        # self.timer_root.timeout.connect(self.checkBottle)
 
         self.timer_1 = QtCore.QTimer(self)
         self.timer_1.timeout.connect(self.getId)
@@ -141,13 +126,11 @@ class Ui(QtWidgets.QMainWindow):
         self.wait_time = 0
 
         self.timer_root.start(1)
-        self.timer_1.start(50)
+        self.timer_1.start(10)
 
         self.timer_win = QtCore.QTimer(self)
         self.timer_win.timeout.connect(self.showNumBot)
-        self.timer_win.start(50)
-
-
+        self.timer_win.start(10)
         self.show()
     def show_detect(self):
         _, self.image = self.cap.read()
@@ -162,25 +145,25 @@ class Ui(QtWidgets.QMainWindow):
         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
         self.convert = QImage(self.image, self.image.shape[1], self.image.shape[0], self.image.strides[0], QImage.Format.Format_RGB888)
         self.frame.setPixmap(QPixmap.fromImage(self.convert))        
-    def checkBottle(self):
-        x = ser.readline()
-        # print(x)
-        # print(result)
-        if (x[:-2].decode("utf-8")) == "0001":
-            time.sleep(0.1)
-            self.show_detect()
-            # result = detect(frame, net)
-            if self.check_bottle :
-                ser.write("0001".encode("utf-8"))
-                print("bottle here")
-                time.sleep(0.01)
-                self.num_bottle+=1
-                if self.check_user == True:
-                    updateData(cursor, self.user_id)
-                    self.timer_1_sec.start(1000)
-            else:
-                ser.write("0000".encode("utf-8"))
-                time.sleep(0.01)
+    # def checkBottle(self):
+    #     x = ser.readline()
+    #     print(x)
+    #     # print(result)
+    #     if (x[:-2].decode("utf-8")) == "0001":
+    #         time.sleep(0.1)
+    #         self.show_detect()
+    #         # result = detect(frame, net)
+    #         if self.check_bottle :
+    #             ser.write("0001".encode("utf-8"))
+    #             print("bottle here")
+    #             time.sleep(0.01)
+    #             self.num_bottle+=1
+    #             if self.check_user == True:
+    #                 updateData(cursor, self.user_id)
+    #                 self.timer_1_sec.start(1000)
+    #         else:
+    #             ser.write("0000".encode("utf-8"))
+    #             time.sleep(0.01)
     def getId(self):
         list_num = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
         self.user_id =  self.phoneid.text()
@@ -241,7 +224,7 @@ class Ui(QtWidgets.QMainWindow):
         self.warning = "Xin chào quý khách"
         self.check_user = False
 if __name__ == "__main__":
-    ser = serial.Serial("tty/AMAC1",9600, timeout = 0.01)
+    ser = serial.Serial("COM6",9600, timeout = 0.1)
     conn = sqlite3.connect('database.db')
     print("Opened database successfully")
     cursor = conn.cursor()
@@ -254,12 +237,11 @@ if __name__ == "__main__":
     #Creating random colors for bounding box visualization.
     colors = {name:[random.randint(0, 255) for _ in range(3)] for i,name in enumerate(names)}
     # Load the TFLite model and allocate tensors.
-    interpreter = tflite.Interpreter(model_path="./bottle_v3_model.tflite")
+    interpreter = tflite.Interpreter(model_path="./InceptionV3_7class_60_epoch.tflite")
     interpreter.allocate_tensors()
     # Get input and output tensors.
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-
     # Test the model on random input data.
     input_shape = input_details[0]['shape']
     cap = cv2.VideoCapture(0)
