@@ -1,0 +1,5 @@
+pyserial
+pyqt5
+opencv-python
+tensorflow
+keyboard
