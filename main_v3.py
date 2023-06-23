@@ -70,6 +70,7 @@ def letterbox(im, new_shape=(320, 320), color=(114, 114, 114), auto=True, scaleu
     return im, r, (dw, dh)
 def detect(img):
     # img = cv2.imread('shape.jpg')
+    image = img
     check_bottle = False
     img = cv2.resize(img, (224,224))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -102,7 +103,7 @@ class Ui(QtWidgets.QMainWindow):
         uic.loadUi('screen.ui', self)
         self.setWindowTitle("MÁY AI THU CHAI NHỰA ĐỔI QUÀ")
         # const 
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(1)
         self.check_bottle = False
         self.user_id = ""
         self.num_bottle = 0
@@ -112,8 +113,8 @@ class Ui(QtWidgets.QMainWindow):
 
         # TIMER 
         self.timer_root = QtCore.QTimer(self)
-        self.timer_root.timeout.connect(self.show_detect)
-        # self.timer_root.timeout.connect(self.checkBottle)
+        self.timer_root.timeout.connect(self.show_frame)
+        self.timer_root.timeout.connect(self.checkBottle)
 
         self.timer_1 = QtCore.QTimer(self)
         self.timer_1.timeout.connect(self.getId)
@@ -122,7 +123,7 @@ class Ui(QtWidgets.QMainWindow):
         self.timer_1_sec.timeout.connect(self.checkOut)
         self.wait_time = 0
 
-        self.timer_root.start(1)
+        self.timer_root.start(10)
         self.timer_1.start(10)
 
         self.timer_win = QtCore.QTimer(self)
@@ -143,24 +144,25 @@ class Ui(QtWidgets.QMainWindow):
         self.convert = QImage(self.image, self.image.shape[1], self.image.shape[0], self.image.strides[0], QImage.Format.Format_RGB888)
         self.frame.setPixmap(QPixmap.fromImage(self.convert))        
     def checkBottle(self):
-        x = ser.readline()
-        print(x)
-        # print(result)
-        if (x[:-2].decode("utf-8")) == "0001":
-            time.sleep(0.1)
-            self.show_detect()
-            # result = detect(frame, net)
-            if self.check_bottle :
-                ser.write("0001".encode("utf-8"))
-                print("bottle here")
-                time.sleep(0.01)
-                self.num_bottle+=1
-                if self.check_user == True:
-                    updateData(cursor, self.user_id)
-                    self.timer_1_sec.start(1000)
-            else:
-                ser.write("0000".encode("utf-8"))
-                time.sleep(0.01)
+        if ser.in_waiting > 0:
+            x = ser.readline()
+            print(x)
+            # print(result)
+            if (x[:-2].decode("utf-8")) == "0001":
+                time.sleep(0.1)
+                self.show_detect()
+                # result = detect(frame, net)
+                if self.check_bottle :
+                    ser.write("0001".encode("utf-8"))
+                    print("bottle here")
+                    time.sleep(0.01)
+                    self.num_bottle+=1
+                    if self.check_user == True:
+                        updateData(cursor, self.user_id)
+                        self.timer_1_sec.start(1000)
+                else:
+                    ser.write("0000".encode("utf-8"))
+                    time.sleep(0.01)
     def getId(self):
         list_num = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
         self.user_id =  self.phoneid.text()
@@ -189,7 +191,7 @@ class Ui(QtWidgets.QMainWindow):
             if self.total_bottle >=5 and self.check_user:
                 print("hello")
                 getGift(cursor, self.user_id)
-                # ser.write("0011".encode("utf-8"))
+                ser.write("0011".encode("utf-8"))
                 time.sleep(1)
             else:
                 self.warning = "Phải có ít nhất 5 chai"
@@ -221,7 +223,7 @@ class Ui(QtWidgets.QMainWindow):
         self.warning = "Xin chào quý khách"
         self.check_user = False
 if __name__ == "__main__":
-    ser = serial.Serial("COM6",9600, timeout = 0.1)
+    ser = serial.Serial("COM5",9600)
     conn = sqlite3.connect('database.db')
     print("Opened database successfully")
     cursor = conn.cursor()
